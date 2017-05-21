@@ -6,51 +6,74 @@
  */
 var unirest = require('unirest');
 var cheerio = require('cheerio');
+//결과를 csv파일로 보낸다.
+var json2csv = require('json2csv');
+var fs = require('fs');
+var fields = ['questions','anwsers'];
 
-//var url = "https://aws.amazon.com/ko/lambda/faqs/?nc1=h_ls";
-var url = "https://aws.amazon.com/ko/s3/faqs/";
+var urlArray = ["https://aws.amazon.com/ko/s3/faqs/","https://aws.amazon.com/ko/lambda/faqs/?nc1=h_ls","https://aws.amazon.com/ko/free/faqs/",
+"https://aws.amazon.com/ko/ec2/faqs/"];
+var nameArray = ["s3","lambda","free","ec2"]
 var questions = [];
-var anwser = [];
+var anwsers = [];
+var result = [];
 var buffer;
-unirest.get(url)
-    .headers({'Content-Type': 'text/html charset=utf-8'})
-    .end(function (res) {
-        subject = cheerio.load(res.body, { decodeEntities: false });
-        // 길이 구하기 aws의 경우 1~n-1까지
-        var subjectLength = subject('.aws-text-box').length;
-        // 반복해서 단위별 얻기
-        for(var i = 1 ; i<subjectLength-1;i++){
-            var faq = subject('.aws-text-box').eq(i).html();
-            QNA = cheerio.load(faq, { decodeEntities: false });
-            //질문길이
-            faqLength = QNA('p').length;
-            // 질문과 답 구별
-            for(var j = 0; j< faqLength ; j++){
-                if(QNA('p').eq(j).text().trim().charAt(0)=='Q'){
-                    //console.log(QNA('p').eq(j).children('b').text());
-                    if(buffer!=null)
-                        anwser.push(buffer);
-                    // 질문지 넎기
-                    buffer = "";
-                    questions.push(QNA('p').eq(j).children('b').text());
-                    // 질문지와 같이 있는 대답 넣기
-                    if(QNA('p').eq(j).children().length!=1){
-                        var temp = cheerio.load(QNA('p').eq(j).html(),{ decodeEntities: false });
-                        temp('b').remove();
-                        //console.log(temp.html());
-                        buffer = buffer +temp.text();
+var cnt = 0;
+for(var idx = 0; idx < urlArray.length;idx++){
+    unirest.get(urlArray[idx])
+        .headers({'Content-Type': 'text/html charset=utf-8'})
+        .end(function (res) {
+            subject = cheerio.load(res.body, { decodeEntities: false });
+            // 길이 구하기 aws의 경우 1~n-1까지
+            var subjectLength = subject('.aws-text-box').length;
+            // 반복해서 단위별 얻기
+            for(var i = 1 ; i<subjectLength-1;i++){
+                var faq = subject('.aws-text-box').eq(i).html();
+                QNA = cheerio.load(faq, { decodeEntities: false });
+                //질문길이
+                faqLength = QNA('p').length;
+                // 질문과 답 구별
+                for(var j = 0; j< faqLength ; j++){
+                    if(QNA('p').eq(j).text().trim().charAt(0)=='Q'){
+                        //console.log(QNA('p').eq(j).children('b').text());
+                        if(buffer!=null)
+                            anwsers.push(buffer);
+                        // 질문지 넎기
+                        buffer = "";
+                        questions.push(QNA('p').eq(j).children('b').text().trim());
+                        // 질문지와 같이 있는 대답 넣기
+                        if(QNA('p').eq(j).children().length!=1){
+                            var temp = cheerio.load(QNA('p').eq(j).html(),{ decodeEntities: false });
+                            temp('b').remove();
+                            //console.log(temp.html());
+                            buffer = buffer +temp.text().trim();
+                        }
+                    }
+                    // 대답 인 경우
+                    else{
+                        buffer = buffer + QNA('p').eq(j).text().trim();
                     }
                 }
-                // 대답 인 경우
-                else{
-                    buffer = buffer + QNA('p').eq(j).text();
-                }
             }
-        }
-        anwser.push(buffer);
-        for(var i = 0 ; i < questions.length ; i++){
-            console.log(questions[i]);
-            console.log(anwser[i]);
-        }
+            anwsers.push(buffer);
+            for(var i = 0 ; i < questions.length ; i++){
+                result.push({"questions" : questions[i],"anwsers" : anwsers[i]});
+                //console.log(questions[i]);
+                //console.log(anwsers[i]);
+            }
+            var csv = json2csv({data:result, fields:fields},function (err,csv) {
+                if(err) console.log(err);
+                //console.log(csv);
+                fs.writeFile(nameArray[cnt++]+'.csv',csv,function(err){
+                    if(err) throw err;
+                    console.log('file saved');
+                });
+            });
 
-    });
+            questions = [];
+            anwsers = [];
+            result = [];
+            buffer = null;
+        });
+}
+
