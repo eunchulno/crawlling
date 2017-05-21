@@ -22,7 +22,7 @@ unirest.get(url)
             if(url('a').attr('href').trim().charAt(0)!='h')
                 urls = 'https://aws.amazon.com' + url('a').attr('href').trim();
             else
-                urls = url('a').attr('href').trim();
+                urls = url('a').attr('href').trim().replace('aws.amazon.com/','aws.amazon.com/ko/');
              result.push({subjects:url('a').text().trim(),urls:urls});
              //console.log(url('a').attr('href'));
         }
